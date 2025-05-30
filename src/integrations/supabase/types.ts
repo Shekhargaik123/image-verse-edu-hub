@@ -9,16 +9,163 @@ export type Json =
 export type Database = {
   public: {
     Tables: {
-      [_ in never]: never
+      bookmarks: {
+        Row: {
+          created_at: string
+          id: string
+          image_id: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          image_id: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          image_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bookmarks_image_id_fkey"
+            columns: ["image_id"]
+            isOneToOne: false
+            referencedRelation: "images"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      images: {
+        Row: {
+          created_at: string
+          description: string | null
+          download_count: number | null
+          id: string
+          image_url: string
+          semester: number | null
+          subject: Database["public"]["Enums"]["subject_type"]
+          tags: string[] | null
+          title: string
+          type: Database["public"]["Enums"]["image_type"]
+          updated_at: string
+          uploaded_by: string
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          download_count?: number | null
+          id?: string
+          image_url: string
+          semester?: number | null
+          subject: Database["public"]["Enums"]["subject_type"]
+          tags?: string[] | null
+          title: string
+          type: Database["public"]["Enums"]["image_type"]
+          updated_at?: string
+          uploaded_by: string
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          download_count?: number | null
+          id?: string
+          image_url?: string
+          semester?: number | null
+          subject?: Database["public"]["Enums"]["subject_type"]
+          tags?: string[] | null
+          title?: string
+          type?: Database["public"]["Enums"]["image_type"]
+          updated_at?: string
+          uploaded_by?: string
+        }
+        Relationships: []
+      }
+      profiles: {
+        Row: {
+          created_at: string
+          department: string | null
+          id: string
+          name: string
+          semester: number | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          department?: string | null
+          id: string
+          name: string
+          semester?: number | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          department?: string | null
+          id?: string
+          name?: string
+          semester?: number | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      user_roles: {
+        Row: {
+          created_at: string
+          id: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          role?: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          role?: Database["public"]["Enums"]["app_role"]
+          user_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      has_role: {
+        Args: {
+          _user_id: string
+          _role: Database["public"]["Enums"]["app_role"]
+        }
+        Returns: boolean
+      }
+      increment_download_count: {
+        Args: { image_id: string }
+        Returns: undefined
+      }
     }
     Enums: {
-      [_ in never]: never
+      app_role: "user" | "admin"
+      image_type:
+        | "Diagrams"
+        | "Notes"
+        | "Charts"
+        | "Formulas"
+        | "Examples"
+        | "Reference"
+      subject_type:
+        | "Engineering Drawing"
+        | "Thermodynamics"
+        | "Mechanics"
+        | "Materials Science"
+        | "Mathematics"
+        | "Physics"
+        | "Chemistry"
+        | "General"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -133,6 +280,26 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      app_role: ["user", "admin"],
+      image_type: [
+        "Diagrams",
+        "Notes",
+        "Charts",
+        "Formulas",
+        "Examples",
+        "Reference",
+      ],
+      subject_type: [
+        "Engineering Drawing",
+        "Thermodynamics",
+        "Mechanics",
+        "Materials Science",
+        "Mathematics",
+        "Physics",
+        "Chemistry",
+        "General",
+      ],
+    },
   },
 } as const
