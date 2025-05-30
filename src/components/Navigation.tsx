@@ -3,7 +3,7 @@ import React from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/contexts/AuthContext';
-import { LogOut, BookOpen, Shield, User } from 'lucide-react';
+import { LogOut, BookOpen, Shield, User, Upload } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 
 export function Navigation() {
@@ -35,7 +35,7 @@ export function Navigation() {
           <div className="flex items-center">
             <Link to="/" className="flex items-center space-x-2">
               <BookOpen className="h-8 w-8 text-blue-600" />
-              <span className="text-2xl font-bold text-gray-900">Lavable</span>
+              <span className="text-2xl font-bold text-gray-900">CAD Hub</span>
             </Link>
             
             {user && (
@@ -53,13 +53,22 @@ export function Navigation() {
                   Bookmarks
                 </Link>
                 {isAdmin && (
-                  <Link 
-                    to="/admin" 
-                    className="text-gray-700 hover:text-blue-600 px-3 py-2 rounded-md text-sm font-medium flex items-center space-x-1"
-                  >
-                    <Shield className="h-4 w-4" />
-                    <span>Admin</span>
-                  </Link>
+                  <>
+                    <Link 
+                      to="/admin/upload" 
+                      className="text-gray-700 hover:text-blue-600 px-3 py-2 rounded-md text-sm font-medium flex items-center space-x-1"
+                    >
+                      <Upload className="h-4 w-4" />
+                      <span>Upload</span>
+                    </Link>
+                    <Link 
+                      to="/admin" 
+                      className="text-gray-700 hover:text-blue-600 px-3 py-2 rounded-md text-sm font-medium flex items-center space-x-1"
+                    >
+                      <Shield className="h-4 w-4" />
+                      <span>Admin</span>
+                    </Link>
+                  </>
                 )}
               </div>
             )}
@@ -68,12 +77,9 @@ export function Navigation() {
           <div className="flex items-center space-x-4">
             {user ? (
               <>
-                <Link to="/profile">
-                  <Button variant="ghost" size="sm" className="flex items-center space-x-2">
-                    <User className="h-4 w-4" />
-                    <span>Profile</span>
-                  </Button>
-                </Link>
+                <div className="text-sm text-gray-600">
+                  Welcome, {user.email === 'admin@gmail.com' ? 'Admin' : user.email}
+                </div>
                 <Button 
                   onClick={handleSignOut}
                   variant="outline" 

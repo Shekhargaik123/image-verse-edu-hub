@@ -31,20 +31,25 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setUser(session?.user ?? null);
         
         if (session?.user) {
-          setTimeout(async () => {
-            try {
-              const { data: roleData } = await supabase
-                .from('user_roles')
-                .select('role')
-                .eq('user_id', session.user.id)
-                .single();
-              
-              setUserRole(roleData?.role || 'user');
-            } catch (error) {
-              console.error('Error fetching user role:', error);
-              setUserRole('user');
-            }
-          }, 0);
+          // Check if it's the hardcoded admin
+          if (session.user.email === 'admin@gmail.com') {
+            setUserRole('admin');
+          } else {
+            setTimeout(async () => {
+              try {
+                const { data: roleData } = await supabase
+                  .from('user_roles')
+                  .select('role')
+                  .eq('user_id', session.user.id)
+                  .single();
+                
+                setUserRole(roleData?.role || 'user');
+              } catch (error) {
+                console.error('Error fetching user role:', error);
+                setUserRole('user');
+              }
+            }, 0);
+          }
         } else {
           setUserRole(null);
         }
@@ -75,6 +80,39 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const signIn = async (email: string, password: string) => {
+    // Handle hardcoded admin login
+    if (email === 'admin@gmail.com' && password === 'admin') {
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email: 'admin@gmail.com',
+        password: 'admin123456' // Use a proper password for actual signup
+      });
+      
+      // If admin doesn't exist, create it
+      if (error && error.message.includes('Invalid login credentials')) {
+        const signUpResult = await supabase.auth.signUp({
+          email: 'admin@gmail.com',
+          password: 'admin123456',
+          options: {
+            data: {
+              name: 'Administrator',
+              department: 'Mechanical Engineering',
+              semester: 8
+            }
+          }
+        });
+        
+        if (!signUpResult.error) {
+          // Try signing in again
+          return await supabase.auth.signInWithPassword({
+            email: 'admin@gmail.com',
+            password: 'admin123456'
+          });
+        }
+        return signUpResult;
+      }
+      return { data, error };
+    }
+    
     const { data, error } = await supabase.auth.signInWithPassword({
       email,
       password
@@ -87,7 +125,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setUserRole(null);
   };
 
-  const isAdmin = userRole === 'admin';
+  const isAdmin = userRole === 'admin' || user?.email === 'admin@gmail.com';
 
   return (
     <AuthContext.Provider value={{

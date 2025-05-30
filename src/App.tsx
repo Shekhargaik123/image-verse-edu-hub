@@ -9,6 +9,8 @@ import { Navigation } from "@/components/Navigation";
 import Home from "./pages/Home";
 import Auth from "./pages/Auth";
 import Gallery from "./pages/Gallery";
+import Bookmarks from "./pages/Bookmarks";
+import AdminUpload from "./pages/AdminUpload";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -26,6 +28,8 @@ const App = () => (
               <Route path="/" element={<Home />} />
               <Route path="/auth" element={<Auth />} />
               <Route path="/gallery" element={<Gallery />} />
+              <Route path="/bookmarks" element={<Bookmarks />} />
+              <Route path="/admin/upload" element={<AdminUpload />} />
               {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
               <Route path="*" element={<NotFound />} />
             </Routes>

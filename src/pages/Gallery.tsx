@@ -9,7 +9,7 @@ import { Badge } from '@/components/ui/badge';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { EducationalImage } from '@/types/database';
-import { Search, Download, Bookmark, BookmarkCheck, Eye } from 'lucide-react';
+import { Search, Download, Bookmark, BookmarkCheck, Eye, Filter } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 
@@ -27,6 +27,7 @@ export default function Gallery() {
   const [semesterFilter, setSemesterFilter] = useState('all');
   const [selectedImage, setSelectedImage] = useState<EducationalImage | null>(null);
   const [showPreview, setShowPreview] = useState(false);
+  const [showFilters, setShowFilters] = useState(false);
 
   useEffect(() => {
     if (user) {
@@ -172,21 +173,42 @@ export default function Gallery() {
   return (
     <div className="min-h-screen bg-gray-50 py-8">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        {/* Header */}
         <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900 mb-6">Educational Gallery</h1>
-          
-          {/* Search and Filters */}
-          <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mb-6">
-            <div className="relative">
+          <h1 className="text-3xl font-bold text-gray-900 mb-2">CAD Gallery</h1>
+          <p className="text-gray-600">Browse and download engineering resources</p>
+          <div className="mt-4 text-sm text-gray-500">
+            {filteredImages.length} resources available
+          </div>
+        </div>
+        
+        {/* Search and Filters */}
+        <div className="bg-white rounded-lg shadow-sm border p-6 mb-8">
+          <div className="flex flex-col lg:flex-row gap-4">
+            {/* Search */}
+            <div className="flex-1 relative">
               <Search className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
               <Input
-                placeholder="Search images..."
+                placeholder="Search CAD images, descriptions, tags..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 className="pl-10"
               />
             </div>
             
+            {/* Filter Toggle for Mobile */}
+            <Button
+              variant="outline"
+              onClick={() => setShowFilters(!showFilters)}
+              className="lg:hidden flex items-center gap-2"
+            >
+              <Filter className="h-4 w-4" />
+              Filters
+            </Button>
+          </div>
+
+          {/* Filters */}
+          <div className={`grid grid-cols-1 md:grid-cols-4 gap-4 mt-4 ${showFilters ? 'block' : 'hidden lg:grid'}`}>
             <Select value={subjectFilter} onValueChange={setSubjectFilter}>
               <SelectTrigger>
                 <SelectValue placeholder="Subject" />
@@ -248,62 +270,76 @@ export default function Gallery() {
         {loading ? (
           <div className="text-center py-12">Loading images...</div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
             {filteredImages.map((image) => (
-              <Card key={image.id} className="hover:shadow-lg transition-shadow">
-                <CardContent className="p-4">
-                  <div className="aspect-square mb-3 relative group cursor-pointer"
+              <Card key={image.id} className="hover:shadow-xl transition-all duration-300 hover:scale-[1.02] bg-white border-0 shadow-md">
+                <CardContent className="p-0">
+                  {/* Image */}
+                  <div className="aspect-square relative group cursor-pointer overflow-hidden rounded-t-lg"
                        onClick={() => openPreview(image)}>
                     <img
                       src={image.image_url}
                       alt={image.title}
-                      className="w-full h-full object-cover rounded-lg"
+                      className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-110"
                     />
-                    <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-50 transition-all rounded-lg flex items-center justify-center">
+                    <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-50 transition-all duration-300 flex items-center justify-center">
                       <Eye className="h-8 w-8 text-white opacity-0 group-hover:opacity-100 transition-opacity" />
                     </div>
-                  </div>
-                  
-                  <h3 className="font-semibold text-gray-900 mb-2 line-clamp-2">{image.title}</h3>
-                  
-                  <div className="flex flex-wrap gap-1 mb-3">
-                    <Badge variant="secondary">{image.subject}</Badge>
-                    <Badge variant="outline">{image.type}</Badge>
-                    <Badge variant="outline">Sem {image.semester}</Badge>
-                  </div>
-
-                  {image.tags.length > 0 && (
-                    <div className="flex flex-wrap gap-1 mb-3">
-                      {image.tags.slice(0, 3).map((tag, index) => (
-                        <Badge key={index} variant="secondary" className="text-xs">
-                          {tag}
-                        </Badge>
-                      ))}
-                    </div>
-                  )}
-
-                  <div className="flex justify-between items-center">
-                    <span className="text-sm text-gray-500">
-                      {image.download_count} downloads
-                    </span>
                     
-                    <div className="flex space-x-2">
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => toggleBookmark(image.id)}
-                      >
-                        {bookmarks.includes(image.id) ? 
-                          <BookmarkCheck className="h-4 w-4" /> : 
-                          <Bookmark className="h-4 w-4" />
-                        }
-                      </Button>
+                    {/* Bookmark button overlay */}
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        toggleBookmark(image.id);
+                      }}
+                    >
+                      {bookmarks.includes(image.id) ? 
+                        <BookmarkCheck className="h-4 w-4 text-blue-600" /> : 
+                        <Bookmark className="h-4 w-4" />
+                      }
+                    </Button>
+                  </div>
+                  
+                  {/* Content */}
+                  <div className="p-4">
+                    <h3 className="font-semibold text-gray-900 mb-2 line-clamp-2 text-lg">{image.title}</h3>
+                    
+                    <div className="flex flex-wrap gap-1 mb-3">
+                      <Badge variant="default" className="bg-blue-600">{image.subject}</Badge>
+                      <Badge variant="outline">{image.type}</Badge>
+                      <Badge variant="outline">Sem {image.semester}</Badge>
+                    </div>
+
+                    {image.tags.length > 0 && (
+                      <div className="flex flex-wrap gap-1 mb-3">
+                        {image.tags.slice(0, 2).map((tag, index) => (
+                          <Badge key={index} variant="secondary" className="text-xs">
+                            {tag}
+                          </Badge>
+                        ))}
+                        {image.tags.length > 2 && (
+                          <Badge variant="secondary" className="text-xs">
+                            +{image.tags.length - 2} more
+                          </Badge>
+                        )}
+                      </div>
+                    )}
+
+                    <div className="flex justify-between items-center pt-2">
+                      <span className="text-sm text-gray-500 font-medium">
+                        {image.download_count} downloads
+                      </span>
                       
                       <Button
                         size="sm"
                         onClick={() => downloadImage(image)}
+                        className="bg-blue-600 hover:bg-blue-700"
                       >
-                        <Download className="h-4 w-4" />
+                        <Download className="h-4 w-4 mr-1" />
+                        Download
                       </Button>
                     </div>
                   </div>
@@ -315,7 +351,11 @@ export default function Gallery() {
 
         {filteredImages.length === 0 && !loading && (
           <div className="text-center py-12">
-            <p className="text-gray-500">No images found matching your criteria.</p>
+            <div className="text-gray-400 mb-4">
+              <Search className="h-16 w-16 mx-auto" />
+            </div>
+            <h3 className="text-lg font-semibold text-gray-900 mb-2">No resources found</h3>
+            <p className="text-gray-500">Try adjusting your search terms or filters.</p>
           </div>
         )}
       </div>
