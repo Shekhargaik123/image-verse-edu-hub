@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Navigate } from 'react-router-dom';
 import { Card, CardContent } from '@/components/ui/card';
@@ -7,9 +6,9 @@ import { Badge } from '@/components/ui/badge';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { EducationalImage } from '@/types/database';
-import { Download, BookmarkCheck, Eye, Trash2 } from 'lucide-react';
+import { Download, BookmarkCheck, Eye, Trash2, Share2, FileText } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Drawer, DrawerContent, DrawerHeader, DrawerTitle, DrawerTrigger, DrawerClose } from '@/components/ui/drawer';
 
 export default function Bookmarks() {
   const { user, loading: authLoading } = useAuth();
@@ -19,6 +18,7 @@ export default function Bookmarks() {
   const [loading, setLoading] = useState(true);
   const [selectedImage, setSelectedImage] = useState<EducationalImage | null>(null);
   const [showPreview, setShowPreview] = useState(false);
+  const [selectedBookmarks, setSelectedBookmarks] = useState<string[]>([]);
 
   useEffect(() => {
     if (user) {
@@ -63,6 +63,7 @@ export default function Bookmarks() {
       
       setBookmarkedImages(bookmarkedImages.filter(img => img.id !== imageId));
       toast({ title: "Bookmark removed" });
+      setSelectedBookmarks(selectedBookmarks.filter(id => id !== imageId));
     } catch (error) {
       toast({
         title: "Error removing bookmark",
@@ -76,12 +77,23 @@ export default function Bookmarks() {
     try {
       // Increment download count
       await supabase.rpc('increment_download_count', { image_id: image.id });
-      
-      // Download the image
+
+      // Fetch the image as a blob
+      const response = await fetch(image.image_url, { mode: 'cors' });
+      const blob = await response.blob();
+
+      // Create a blob URL and trigger download
+      const url = window.URL.createObjectURL(blob);
       const link = document.createElement('a');
-      link.href = image.image_url;
-      link.download = `${image.title}.jpg`;
+      link.href = url;
+      // Determine file extension from type or url
+      const fileExtension = image.type.toLowerCase() === 'diagrams' ? 'step' : image.image_url.split('.').pop();
+      link.download = `${image.title}.${fileExtension}`; // Suggests a filename
+      
+      document.body.appendChild(link);
       link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
 
       toast({ title: "Download started" });
     } catch (error) {
@@ -93,9 +105,95 @@ export default function Bookmarks() {
     }
   };
 
+  const shareImage = async (image) => {
+    const url = image.image_url;
+    const title = image.title;
+    if (navigator.share) {
+      try {
+        await navigator.share({ title, url });
+        toast({ title: 'Link shared!' });
+      } catch (e) {
+        toast({ title: 'Share cancelled', variant: 'destructive' });
+      }
+    } else if (navigator.clipboard) {
+      await navigator.clipboard.writeText(url);
+      toast({ title: 'Link copied to clipboard!' });
+    } else {
+      toast({ title: 'Clipboard not supported', variant: 'destructive' });
+    }
+  };
+
   const openPreview = (image: EducationalImage) => {
     setSelectedImage(image);
     setShowPreview(true);
+    console.log('Opening preview for:', image);
+  };
+
+  const toggleSelectBookmark = (imageId: string) => {
+    setSelectedBookmarks(prevSelected =>
+      prevSelected.includes(imageId)
+        ? prevSelected.filter(id => id !== imageId)
+        : [...prevSelected, imageId]
+    );
+  };
+
+  const deleteAllBookmarks = async () => {
+    if (!user || bookmarkedImages.length === 0) return;
+
+    if (window.confirm(`Are you sure you want to delete all ${bookmarkedImages.length} bookmarks? This action cannot be undone.`)) {
+      setLoading(true);
+      try {
+        const { error } = await supabase
+          .from('bookmarks')
+          .delete()
+          .eq('user_id', user.id);
+
+        if (error) throw error;
+
+        setBookmarkedImages([]);
+        setSelectedBookmarks([]);
+        toast({ title: "All bookmarks removed" });
+      } catch (error) {
+        toast({
+          title: "Error removing all bookmarks",
+          description: "Please try again",
+          variant: "destructive"
+        });
+      } finally {
+        setLoading(false);
+      }
+    }
+  };
+
+  const deleteSelectedBookmarks = async () => {
+    if (selectedBookmarks.length === 0) return;
+
+    if (window.confirm(`Are you sure you want to delete ${selectedBookmarks.length} selected bookmarks? This action cannot be undone.`)) {
+      setLoading(true);
+      try {
+        // Supabase supports deleting multiple rows with 'in'
+        const { error } = await supabase
+          .from('bookmarks')
+          .delete()
+          .eq('user_id', user.id)
+          .in('image_id', selectedBookmarks);
+
+        if (error) throw error;
+
+        // Update the local state to remove the deleted items
+        setBookmarkedImages(bookmarkedImages.filter(img => !selectedBookmarks.includes(img.id)));
+        setSelectedBookmarks([]);
+        toast({ title: `${selectedBookmarks.length} bookmarks removed` });
+      } catch (error) {
+        toast({
+          title: "Error removing selected bookmarks",
+          description: "Please try again",
+          variant: "destructive"
+        });
+      } finally {
+        setLoading(false);
+      }
+    }
   };
 
   if (authLoading) {
@@ -132,11 +230,27 @@ export default function Bookmarks() {
                 <CardContent className="p-4">
                   <div className="aspect-square mb-3 relative group cursor-pointer"
                        onClick={() => openPreview(image)}>
-                    <img
-                      src={image.image_url}
-                      alt={image.title}
-                      className="w-full h-full object-cover rounded-lg"
-                    />
+                    {/* Thumbnail preview - show image or file icon */}
+                    {image.preview_image_url ? (
+                      <img
+                        src={image.preview_image_url}
+                        alt={`Preview of ${image.title}`}
+                        className="w-full h-full object-cover rounded-lg"
+                      />
+                    ) : image.image_url.match(/\.(jpeg|jpg|png|gif|svg|webp)$/i) ? (
+                      <img
+                        src={image.image_url}
+                        alt={image.title}
+                        className="w-full h-full object-cover rounded-lg"
+                      />
+                    ) : (
+                      <div className="flex flex-col items-center justify-center w-full h-full bg-gray-200 text-gray-600 rounded-lg">
+                         <FileText className="w-12 h-12 mb-2" />
+                         <p className="text-sm font-semibold text-center px-2 line-clamp-1">{image.title}</p>
+                         <p className="text-xs text-gray-500 mt-1">{image.type || 'File'}</p>
+                      </div>
+                    )}
+                    
                     <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-50 transition-all rounded-lg flex items-center justify-center">
                       <Eye className="h-8 w-8 text-white opacity-0 group-hover:opacity-100 transition-opacity" />
                     </div>
@@ -151,7 +265,7 @@ export default function Bookmarks() {
                   </div>
 
                   {image.tags && image.tags.length > 0 && (
-                    <div className="flex flex-wrap gap-1 mb-3">
+                    <div className="flex flex-wrap gap-1 mb-3"> 
                       {image.tags.slice(0, 3).map((tag, index) => (
                         <Badge key={index} variant="secondary" className="text-xs">
                           {tag}
@@ -169,7 +283,7 @@ export default function Bookmarks() {
                       <Button
                         size="sm"
                         variant="outline"
-                        onClick={() => removeBookmark(image.id)}
+                        onClick={(e) => { e.stopPropagation(); removeBookmark(image.id); }}
                         className="text-red-600 hover:text-red-700"
                       >
                         <Trash2 className="h-4 w-4" />
@@ -177,33 +291,76 @@ export default function Bookmarks() {
                       
                       <Button
                         size="sm"
-                        onClick={() => downloadImage(image)}
+                        onClick={(e) => { e.stopPropagation(); downloadImage(image); }}
                       >
                         <Download className="h-4 w-4" />
                       </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={(e) => { e.stopPropagation(); shareImage(image); }}
+                        className="ml-2"
+                      >
+                        <Share2 className="h-4 w-4" />
+                      </Button>
                     </div>
                   </div>
+
+                  {/* Checkbox for selection */}
+                  <input
+                    type="checkbox"
+                    checked={selectedBookmarks.includes(image.id)}
+                    onChange={() => toggleSelectBookmark(image.id)}
+                    className="absolute top-2 left-2 z-10 h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                    onClick={(e) => e.stopPropagation()} // Prevent card click when clicking checkbox
+                  />
                 </CardContent>
               </Card>
             ))}
           </div>
         )}
 
+        {/* Add buttons for delete selected and delete all above the grid */}
+        <div className="mb-4 flex justify-end gap-2">
+          {selectedBookmarks.length > 0 && (
+            <Button variant="destructive" onClick={deleteSelectedBookmarks} disabled={loading}>
+              Delete Selected ({selectedBookmarks.length})
+            </Button>
+          )}
+          {bookmarkedImages.length > 0 && (
+             <Button variant="outline" onClick={deleteAllBookmarks} disabled={loading}>
+               Delete All
+             </Button>
+          )}
+        </div>
+
         {/* Image Preview Dialog */}
-        <Dialog open={showPreview} onOpenChange={setShowPreview}>
-          <DialogContent className="max-w-4xl">
-            <DialogHeader>
-              <DialogTitle>{selectedImage?.title}</DialogTitle>
-            </DialogHeader>
+        <Drawer open={showPreview} onOpenChange={setShowPreview} direction="right">
+          <DrawerContent className="w-[600px] p-6 flex flex-col max-h-[95vh]">
+            <DrawerHeader className="flex-shrink-0">
+              <DrawerTitle>{selectedImage?.title}</DrawerTitle>
+            </DrawerHeader>
             
             {selectedImage && (
-              <div className="space-y-4">
-                <img
-                  src={selectedImage.image_url}
-                  alt={selectedImage.title}
-                  className="w-full max-h-96 object-contain rounded-lg"
-                />
-                
+              <div className="space-y-4 overflow-y-auto flex-grow">
+                {/* File Preview */}
+                <div className="flex-1 min-h-0 bg-gray-100 rounded-lg overflow-hidden flex justify-center items-center">
+                  {selectedImage.image_url.match(/\.(jpeg|jpg|png|gif|svg|webp)$/i) || selectedImage.preview_image_url ? (
+                    <img
+                      src={selectedImage.preview_image_url || selectedImage.image_url}
+                      alt={selectedImage.title}
+                      className="max-w-full max-h-full object-contain"
+                    />
+                  ) : ( // Handle non-image files - show a placeholder or download option
+                    <div className="flex flex-col items-center justify-center text-gray-600">
+                      <FileText className="w-16 h-16 mb-4" />
+                      <p className="text-lg font-semibold mb-2">File Preview Not Available</p>
+                      <p className="text-sm text-gray-500 text-center mb-4">This file type cannot be previewed directly. Please download to view.</p>
+                      {/* Optional: Add a download button here if not already in action buttons below */}
+                    </div>
+                  )}
+                </div>
+
                 <div className="grid grid-cols-2 gap-4 text-sm">
                   <div>
                     <p><strong>Subject:</strong> {selectedImage.subject}</p>
@@ -233,26 +390,31 @@ export default function Bookmarks() {
                     </div>
                   </div>
                 )}
-
-                <div className="flex justify-end space-x-2">
-                  <Button
-                    variant="outline"
-                    onClick={() => removeBookmark(selectedImage.id)}
-                    className="text-red-600 hover:text-red-700"
-                  >
-                    <Trash2 className="h-4 w-4 mr-2" />
-                    Remove Bookmark
-                  </Button>
-                  
-                  <Button onClick={() => downloadImage(selectedImage)}>
-                    <Download className="h-4 w-4 mr-2" />
-                    Download
-                  </Button>
-                </div>
               </div>
             )}
-          </DialogContent>
-        </Dialog>
+            {selectedImage && (
+              <div className="flex justify-end space-x-2 mt-4 flex-shrink-0">
+                <Button
+                  variant="outline"
+                  onClick={() => removeBookmark(selectedImage.id)}
+                  className="text-red-600 hover:text-red-700"
+                >
+                  <Trash2 className="h-4 w-4 mr-2" />
+                  Remove Bookmark
+                </Button>
+                
+                <Button onClick={() => downloadImage(selectedImage)}>
+                  <Download className="h-4 w-4 mr-2" />
+                  Download
+                </Button>
+                <Button variant="outline" onClick={() => shareImage(selectedImage)}>
+                  <Share2 className="h-4 w-4 mr-2" />
+                  Share
+                </Button>
+              </div>
+            )}
+          </DrawerContent>
+        </Drawer>
       </div>
     </div>
   );

@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Navigate } from 'react-router-dom';
 import { Input } from '@/components/ui/input';
@@ -9,14 +8,17 @@ import { Badge } from '@/components/ui/badge';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { EducationalImage } from '@/types/database';
-import { Search, Download, Bookmark, BookmarkCheck, Eye, Filter } from 'lucide-react';
+import { Search, Download, Bookmark, BookmarkCheck, Eye, Filter, Share2, Trash2, FileText } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import CADViewer from '@/components/CADViewer';
 
 export default function Gallery() {
-  const { user, loading: authLoading } = useAuth();
+  const { user, isAdmin, loading: authLoading } = useAuth();
   const { toast } = useToast();
   
+  console.log("Gallery component render:", { user, isAdmin, authLoading });
+
   const [images, setImages] = useState<EducationalImage[]>([]);
   const [filteredImages, setFilteredImages] = useState<EducationalImage[]>([]);
   const [bookmarks, setBookmarks] = useState<string[]>([]);
@@ -28,8 +30,10 @@ export default function Gallery() {
   const [selectedImage, setSelectedImage] = useState<EducationalImage | null>(null);
   const [showPreview, setShowPreview] = useState(false);
   const [showFilters, setShowFilters] = useState(false);
+  const [selectedImages, setSelectedImages] = useState<string[]>([]);
 
   useEffect(() => {
+    console.log("useEffect in Gallery:", { user, authLoading });
     if (user) {
       fetchImages();
       fetchBookmarks();
@@ -41,6 +45,7 @@ export default function Gallery() {
   }, [images, searchTerm, subjectFilter, typeFilter, semesterFilter]);
 
   const fetchImages = async () => {
+    console.log("fetchImages called");
     try {
       const { data, error } = await supabase
         .from('images')
@@ -48,14 +53,18 @@ export default function Gallery() {
         .order('created_at', { ascending: false });
 
       if (error) throw error;
+      console.log("Images fetched:", data);
       setImages(data || []);
+      setSelectedImages([]);
     } catch (error) {
+      console.error("Error fetching images:", error);
       toast({
         title: "Error loading images",
         description: "Please try again",
         variant: "destructive"
       });
     } finally {
+      console.log("fetchImages finally block reached");
       setLoading(false);
     }
   };
@@ -140,12 +149,20 @@ export default function Gallery() {
     try {
       // Increment download count
       await supabase.rpc('increment_download_count', { image_id: image.id });
-      
-      // Download the image
+
+      // Fetch the image as a blob
+      const response = await fetch(image.image_url, { mode: 'cors' });
+      const blob = await response.blob();
+
+      // Create a blob URL and trigger download
+      const url = window.URL.createObjectURL(blob);
       const link = document.createElement('a');
-      link.href = image.image_url;
+      link.href = url;
       link.download = `${image.title}.jpg`;
+      document.body.appendChild(link);
       link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
 
       toast({ title: "Download started" });
     } catch (error) {
@@ -157,9 +174,238 @@ export default function Gallery() {
     }
   };
 
+  const shareImage = async (image) => {
+    const url = image.image_url;
+    const title = image.title;
+    if (navigator.share) {
+      try {
+        await navigator.share({ title, url });
+        toast({ title: 'Link shared!' });
+      } catch (e) {
+        toast({ title: 'Share cancelled', variant: 'destructive' });
+      }
+    } else if (navigator.clipboard) {
+      await navigator.clipboard.writeText(url);
+      toast({ title: 'Link copied to clipboard!' });
+    } else {
+      toast({ title: 'Clipboard not supported', variant: 'destructive' });
+    }
+  };
+
   const openPreview = (image: EducationalImage) => {
     setSelectedImage(image);
     setShowPreview(true);
+  };
+
+  const deleteImage = async (image: EducationalImage) => {
+    console.log('Delete attempt:', { user, isAdmin });
+
+    if (!isAdmin) {
+      toast({
+        title: "Unauthorized",
+        description: "Only administrators can delete images.",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    try {
+      // Add a confirmation step for extra safety
+      const isConfirmed = window.confirm(`Are you sure you want to delete "${image.title}"? This action cannot be undone.`);
+      if (!isConfirmed) {
+        toast({
+          title: "Deletion cancelled",
+          description: "The image was not deleted.",
+        });
+        return;
+      }
+
+      // Delete from storage
+      const filePath = image.image_url.split('/').pop();
+      if (filePath) {
+        const { error: storageError } = await supabase.storage
+          .from('educational-images')
+          .remove([`cad-images/${filePath}`]);
+
+        if (storageError) throw storageError;
+      }
+
+      // Delete from database
+      const { error: dbError } = await supabase
+        .from('images')
+        .delete()
+        .eq('id', image.id);
+
+      if (dbError) throw dbError;
+
+      // Update local state
+      setImages(images.filter(img => img.id !== image.id));
+      toast({
+        title: "Image deleted successfully",
+        description: `"${image.title}" has been removed.`
+      });
+      // Also remove from selectedImages if it was selected
+      setSelectedImages(selectedImages.filter(id => id !== image.id));
+    } catch (error: any) {
+      toast({
+        title: "Deletion failed",
+        description: error.message || "An unexpected error occurred.",
+        variant: "destructive"
+      });
+    }
+  };
+
+  const toggleSelectImage = (imageId: string) => {
+    setSelectedImages(prevSelected =>
+      prevSelected.includes(imageId)
+        ? prevSelected.filter(id => id !== imageId)
+        : [...prevSelected, imageId]
+    );
+  };
+
+  const deleteAllImages = async () => {
+    if (!isAdmin || images.length === 0) return;
+
+    if (window.confirm(`Are you sure you want to delete all ${images.length} images? This action cannot be undone.`)) {
+      setLoading(true);
+      try {
+        // Fetch all image file paths to delete from storage
+        const { data: imageData, error: fetchError } = await supabase
+          .from('images')
+          .select('image_url, preview_image_url')
+          .eq('uploaded_by', user!.id); // Only allow admin to delete their own uploads for safety
+
+        if (fetchError) {
+          console.error("Error fetching images for deletion:", fetchError);
+          toast({
+            title: "Deletion failed",
+            description: fetchError.message || "An unexpected error occurred while fetching data.",
+            variant: "destructive"
+          });
+          setLoading(false);
+          return;
+        }
+
+        // Explicitly type imageData as an array of objects with image_url and preview_image_url
+        const imagesToDelete = imageData as unknown as { image_url: string, preview_image_url: string | null }[] || [];
+
+        const storagePaths = imagesToDelete
+          .map(img => img.image_url.split('/').pop())
+          .filter(Boolean)
+          .map(filePath => `educational-images/${filePath}`) as string[];
+
+        const previewStoragePaths = imagesToDelete
+          .map(img => img.preview_image_url?.split('/').pop())
+          .filter(Boolean)
+          .map(filePath => `educational-images/${filePath}`) as string[];
+
+        const allStoragePathsToDelete = [...storagePaths, ...previewStoragePaths];
+
+        if (allStoragePathsToDelete.length > 0) {
+          const { error: storageError } = await supabase.storage
+            .from('educational-images')
+            .remove(allStoragePathsToDelete);
+
+          // Log storage error but continue with database deletion
+          if (storageError) {
+            console.error("Error deleting files from storage:", storageError);
+          }
+        }
+
+        // Delete all images from database
+        const { error: dbError } = await supabase
+          .from('images')
+          .delete()
+          .eq('uploaded_by', user!.id); // Only delete admin's own uploads
+
+        if (dbError) throw dbError;
+
+        setImages([]);
+        setFilteredImages([]);
+        setSelectedImages([]);
+        toast({ title: "All images removed" });
+      } catch (error: any) {
+        toast({
+          title: "Error removing all images",
+          description: error.message || "Please try again",
+          variant: "destructive"
+        });
+      } finally {
+        setLoading(false);
+      }
+    }
+  };
+
+  const deleteSelectedImages = async () => {
+    if (!isAdmin || selectedImages.length === 0) return;
+
+    if (window.confirm(`Are you sure you want to delete ${selectedImages.length} selected images? This action cannot be undone.`)) {
+      setLoading(true);
+      try {
+        // Fetch the image data for selected images to get file paths
+        const { data: selectedImageData, error: fetchError } = await supabase
+          .from('images')
+          .select('id, image_url, preview_image_url')
+          .in('id', selectedImages);
+
+        if (fetchError) {
+           console.error("Error fetching selected images for deletion:", fetchError);
+           toast({
+             title: "Deletion failed",
+             description: fetchError.message || "An unexpected error occurred while fetching data.",
+             variant: "destructive"
+           });
+           setLoading(false);
+           return;
+        }
+
+        // Explicitly type selectedImageData as an array of objects with id, image_url, and preview_image_url
+        const imagesToDelete = selectedImageData as unknown as { id: string, image_url: string, preview_image_url: string | null }[] || [];
+
+        // Collect storage paths for selected images
+        const storagePathsToDelete = imagesToDelete
+          .map(img => img.image_url.split('/').pop()).filter(Boolean).map(filePath => `educational-images/${filePath}`) as string[] || [];
+
+         const previewStoragePathsToDelete = imagesToDelete
+           .map(img => img.preview_image_url?.split('/').pop()).filter(Boolean).map(filePath => `educational-images/${filePath}`) as string[] || [];
+
+        const allStoragePathsToDelete = [...storagePathsToDelete, ...previewStoragePathsToDelete];
+
+        // Delete selected files from storage
+        if (allStoragePathsToDelete.length > 0) {
+          const { error: storageError } = await supabase.storage
+            .from('educational-images')
+            .remove(allStoragePathsToDelete);
+
+          // Log storage error but continue with database deletion
+          if (storageError) {
+            console.error("Error deleting selected files from storage:", storageError);
+          }
+        }
+
+        // Delete selected images from database
+        const { error: dbError } = await supabase
+          .from('images')
+          .delete()
+          .in('id', selectedImages);
+
+        if (dbError) throw dbError;
+
+        // Update the local state to remove the deleted items
+        setImages(images.filter(img => !selectedImages.includes(img.id)));
+        setFilteredImages(filteredImages.filter(img => !selectedImages.includes(img.id))); // Also update filtered images
+        setSelectedImages([]);
+        toast({ title: `${selectedImages.length} images removed` });
+      } catch (error: any) {
+        toast({
+          title: "Error removing selected images",
+          description: error.message || "Please try again",
+          variant: "destructive"
+        });
+      } finally {
+        setLoading(false);
+      }
+    }
   };
 
   if (authLoading) {
@@ -277,11 +523,25 @@ export default function Gallery() {
                   {/* Image */}
                   <div className="aspect-square relative group cursor-pointer overflow-hidden rounded-t-lg"
                        onClick={() => openPreview(image)}>
-                    <img
-                      src={image.image_url}
-                      alt={image.title}
-                      className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-110"
-                    />
+                    {/* Conditionally render image or file icon */}
+                    {image.preview_image_url ? (
+                      <img
+                        src={image.preview_image_url}
+                        alt={`Preview of ${image.title}`}
+                        className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-110"
+                      />
+                    ) : image.image_url.match(/\.(jpeg|jpg|png|gif|svg|webp)$/i) ? (
+                      <img
+                        src={image.image_url}
+                        alt={image.title}
+                        className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-110"
+                      />
+                    ) : (
+                      <div className="flex flex-col items-center justify-center w-full h-full bg-gray-200 text-gray-600">
+                        <FileText className="w-16 h-16 mb-2" />
+                        <p className="text-sm font-semibold text-center px-2 line-clamp-2">{image.title}</p>
+                      </div>
+                    )}
                     <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-50 transition-all duration-300 flex items-center justify-center">
                       <Eye className="h-8 w-8 text-white opacity-0 group-hover:opacity-100 transition-opacity" />
                     </div>
@@ -328,19 +588,35 @@ export default function Gallery() {
                       </div>
                     )}
 
-                    <div className="flex justify-between items-center pt-2">
+                    <div className="flex justify-between items-center mt-4">
                       <span className="text-sm text-gray-500 font-medium">
                         {image.download_count} downloads
                       </span>
                       
-                      <Button
-                        size="sm"
-                        onClick={() => downloadImage(image)}
-                        className="bg-blue-600 hover:bg-blue-700"
-                      >
-                        <Download className="h-4 w-4 mr-1" />
-                        Download
-                      </Button>
+                      {/* Action Buttons */}
+                      <div className="flex items-center flex-wrap justify-end gap-2">
+                        {isAdmin && (
+                          <Button
+                            size="sm"
+                            variant="destructive"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              deleteImage(image);
+                            }}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                            Delete
+                          </Button>
+                        )}
+                        <Button
+                          size="sm"
+                          onClick={() => downloadImage(image)}
+                          className="bg-blue-600 hover:bg-blue-700"
+                        >
+                          <Download className="h-4 w-4 mr-1" />
+                          Download
+                        </Button>
+                      </div>
                     </div>
                   </div>
                 </CardContent>
@@ -358,54 +634,99 @@ export default function Gallery() {
             <p className="text-gray-500">Try adjusting your search terms or filters.</p>
           </div>
         )}
+
+        {/* Add buttons for delete selected and delete all above the grid, only for admins */}
+        {isAdmin && filteredImages.length > 0 && (
+          <div className="mb-4 flex justify-end gap-2">
+            {selectedImages.length > 0 && (
+              <Button variant="destructive" onClick={deleteSelectedImages} disabled={loading}>
+                Delete Selected ({selectedImages.length})
+              </Button>
+            )}
+            <Button variant="outline" onClick={deleteAllImages} disabled={loading}>
+              Delete All
+            </Button>
+          </div>
+        )}
       </div>
 
       {/* Image Preview Dialog */}
       <Dialog open={showPreview} onOpenChange={setShowPreview}>
-        <DialogContent className="max-w-4xl">
-          <DialogHeader>
+        <DialogContent className="max-w-4xl max-h-[95vh] p-6 overflow-hidden flex flex-col">
+          <DialogHeader className="flex-shrink-0">
             <DialogTitle>{selectedImage?.title}</DialogTitle>
           </DialogHeader>
           
           {selectedImage && (
-            <div className="space-y-4">
-              <img
-                src={selectedImage.image_url}
-                alt={selectedImage.title}
-                className="w-full max-h-96 object-contain rounded-lg"
-              />
-              
-              <div className="grid grid-cols-2 gap-4 text-sm">
-                <div>
-                  <p><strong>Subject:</strong> {selectedImage.subject}</p>
-                  <p><strong>Type:</strong> {selectedImage.type}</p>
-                  <p><strong>Semester:</strong> {selectedImage.semester}</p>
-                </div>
-                <div>
-                  <p><strong>Downloads:</strong> {selectedImage.download_count}</p>
-                  <p><strong>Uploaded:</strong> {new Date(selectedImage.created_at).toLocaleDateString()}</p>
-                </div>
-              </div>
-
-              {selectedImage.description && (
-                <div>
-                  <p><strong>Description:</strong></p>
-                  <p className="text-gray-600">{selectedImage.description}</p>
-                </div>
-              )}
-
-              {selectedImage.tags.length > 0 && (
-                <div>
-                  <p><strong>Tags:</strong></p>
-                  <div className="flex flex-wrap gap-1 mt-1">
-                    {selectedImage.tags.map((tag, index) => (
-                      <Badge key={index} variant="secondary">{tag}</Badge>
-                    ))}
+            <div className="flex flex-col h-full min-h-0">
+              {/* Fixed Info Section */}
+              <div className="flex-shrink-0 space-y-4 mb-4">
+                <div className="grid grid-cols-2 gap-4 text-sm">
+                  <div>
+                    <p><strong>Subject:</strong> {selectedImage.subject}</p>
+                    <p><strong>Type:</strong> {selectedImage.type}</p>
+                    <p><strong>Semester:</strong> {selectedImage.semester}</p>
+                  </div>
+                  <div>
+                    <p><strong>Downloads:</strong> {selectedImage.download_count}</p>
+                    <p><strong>Uploaded:</strong> {new Date(selectedImage.created_at).toLocaleDateString()}</p>
                   </div>
                 </div>
-              )}
 
-              <div className="flex justify-end space-x-2">
+                {selectedImage.description && (
+                  <div>
+                    <p><strong>Description:</strong></p>
+                    <p className="text-gray-600">{selectedImage.description}</p>
+                  </div>
+                )}
+
+                {selectedImage.tags.length > 0 && (
+                  <div>
+                    <p><strong>Tags:</strong></p>
+                    <div className="flex flex-wrap gap-1 mt-1">
+                      {selectedImage.tags.map((tag, index) => (
+                        <Badge key={index} variant="secondary">{tag}</Badge>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Constrained Resource Preview Area */}
+              <div className="flex-1 min-h-0 bg-gray-100 rounded-lg overflow-hidden flex justify-center items-center">
+                {selectedImage.image_url.match(/\.(jpeg|jpg|png|gif|svg|webp)$/i) || selectedImage.type === '3D Model' ? (
+                  // For 3D models, check for preview_image_url first, then image_url (if it was converted/uploaded as image)
+                  selectedImage.preview_image_url ? (
+                    <img
+                      src={selectedImage.preview_image_url}
+                      alt={`Preview of ${selectedImage.title}`}
+                      className="max-w-full max-h-full object-contain"
+                    />
+                  ) : selectedImage.image_url.match(/\.(jpeg|jpg|png|gif|svg|webp)$/i) ? (
+                    <img
+                      src={selectedImage.image_url}
+                      alt={selectedImage.title}
+                      className="max-w-full max-h-full object-contain"
+                    />
+                   ) : (
+                    // Fallback for 3D model without preview image
+                    <div className="flex flex-col items-center justify-center text-gray-600">
+                      <FileText className="w-16 h-16 mb-4" />
+                      <p className="text-lg font-semibold mb-2">3D Model Preview Not Available</p>
+                      <p className="text-sm text-gray-500 text-center mb-4">A preview image was not provided for this model.</p>
+                    </div>
+                   )
+                ) : ( // Handle other non-image files
+                  <div className="flex flex-col items-center justify-center text-gray-600">
+                    <FileText className="w-16 h-16 mb-4" />
+                    <p className="text-lg font-semibold mb-2">File Preview Not Available</p>
+                    <p className="text-sm text-gray-500 text-center mb-4">This file type cannot be previewed directly. Please download to view.</p>
+                  </div>
+                )}
+              </div>
+
+              {/* Fixed Action Buttons */}
+              <div className="flex-shrink-0 flex justify-end items-center space-x-2 mt-4 pt-4 border-t">
                 <Button
                   variant="outline"
                   onClick={() => toggleBookmark(selectedImage.id)}
@@ -415,11 +736,25 @@ export default function Gallery() {
                     <><Bookmark className="h-4 w-4 mr-2" /> Bookmark</>
                   }
                 </Button>
-                
                 <Button onClick={() => downloadImage(selectedImage)}>
                   <Download className="h-4 w-4 mr-2" />
                   Download
                 </Button>
+                <Button variant="outline" onClick={() => shareImage(selectedImage)}>
+                  <Share2 className="h-4 w-4 mr-2" />
+                  Share
+                </Button>
+                {isAdmin && (
+                  <Button
+                    variant="destructive"
+                    onClick={() => {
+                      deleteImage(selectedImage);
+                    }}
+                  >
+                    <Trash2 className="h-4 w-4 mr-2" />
+                    Delete
+                  </Button>
+                )}
               </div>
             </div>
           )}

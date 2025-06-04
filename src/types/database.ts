@@ -1,4 +1,3 @@
-
 export interface Profile {
   id: string;
   name: string;
@@ -20,8 +19,9 @@ export interface EducationalImage {
   title: string;
   description: string | null;
   image_url: string;
+  preview_image_url?: string | null;
   subject: 'Engineering Drawing' | 'Thermodynamics' | 'Mechanics' | 'Materials Science' | 'Mathematics' | 'Physics' | 'Chemistry' | 'General';
-  type: 'Diagrams' | 'Notes' | 'Charts' | 'Formulas' | 'Examples' | 'Reference';
+  type: 'Diagrams' | 'Notes' | 'Charts' | 'Formulas' | 'Examples' | 'Reference' | '3D Model';
   tags: string[];
   semester: number;
   uploaded_by: string;
