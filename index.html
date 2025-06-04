@@ -3,20 +3,27 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>image-verse-edu-hub</title>
-    <meta name="description" content="Lovable Generated Project" />
-    <meta name="author" content="Lovable" />
+    <title>CAD File Sharing Application</title>
+    <meta name="description" content="A platform to upload, view, and share CAD files securely and efficiently." />
+    <meta name="author" content="CAD Team" />
 
-    <meta property="og:title" content="image-verse-edu-hub" />
-    <meta property="og:description" content="Lovable Generated Project" />
+    <!-- Favicon for CAD -->
+    <link rel="icon" href="https://cdn-icons-png.flaticon.com/512/841/841364.png" type="image/png" />
+    <link rel="shortcut icon" href="https://cdn-icons-png.flaticon.com/512/841/841364.png" type="image/png" />
+    <link rel="apple-touch-icon" href="https://cdn-icons-png.flaticon.com/512/841/841364.png" />
+
+    <!-- Open Graph -->
+    <meta property="og:title" content="CAD File Sharing Application" />
+    <meta property="og:description" content="Upload, preview, and share CAD files easily in a collaborative environment." />
     <meta property="og:type" content="website" />
-    <meta property="og:image" content="https://lovable.dev/opengraph-image-p98pqg.png" />
+    <meta property="og:image" content="https://cdn-icons-png.flaticon.com/512/841/841364.png" />
 
+    <!-- Twitter Card -->
     <meta name="twitter:card" content="summary_large_image" />
-    <meta name="twitter:site" content="@lovable_dev" />
-    <meta name="twitter:image" content="https://lovable.dev/opengraph-image-p98pqg.png" />
+    <meta name="twitter:site" content="@cad_file_share" />
+    <meta name="twitter:image" content="https://cdn-icons-png.flaticon.com/512/841/841364.png" />
 
-    <!-- Added Content Security Policy -->
+    <!-- Content Security Policy -->
     <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' 'wasm-unsafe-eval' https://cdn.gpteng.co; style-src 'self' 'unsafe-inline'; connect-src 'self' https://gsnxvvpzwzaiveykzlnw.supabase.co; img-src 'self' data: https:; font-src 'self' data:;">
   </head>
 
@@ -26,10 +33,10 @@
     <script src="https://cdn.gpteng.co/gptengineer.js" type="module"></script>
     <script type="module" src="/src/main.tsx"></script>
     <script>
-      function downloadImage(url, filename = "image.jpg") {
+      function downloadImage(url, filename = "cad-file.step") {
         const link = document.createElement('a');
         link.href = url;
-        link.download = filename; // Suggests a filename
+        link.download = filename;
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
