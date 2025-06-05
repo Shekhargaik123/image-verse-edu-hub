@@ -733,13 +733,22 @@ export default function Gallery() {
                       alt={selectedImage.title}
                       className="max-w-full max-h-full object-contain"
                     />
-                   ) : ( // Handle other non-image files and unsupported 3D formats
+                  ) : ( // Handle other CAD files
                     <div className="flex flex-col items-center justify-center text-gray-600 w-full h-full">
                       <FileText className="w-16 h-16 mb-4" />
-                      <p className="text-lg font-semibold mb-2">File Preview Not Available</p>
-                      <p className="text-sm text-gray-500 text-center mb-4">This file type cannot be previewed directly. Please download to view or the format is not supported for direct preview.</p>
+                      <p className="text-lg font-semibold mb-2">CAD File Preview</p>
+                      <p className="text-sm text-gray-500 text-center mb-4">
+                        This CAD file format cannot be previewed directly. Please download the file to view it in your CAD software.
+                      </p>
+                      <Button
+                        onClick={() => downloadImage(selectedImage)}
+                        className="mt-4"
+                      >
+                        <Download className="w-4 h-4 mr-2" />
+                        Download CAD File
+                      </Button>
                     </div>
-                   )}
+                  )}
                 </div>
               </div>
 
@@ -754,7 +763,7 @@ export default function Gallery() {
                     <><Bookmark className="h-4 w-4 mr-2" /> Bookmark</>
                   }
                 </Button>
-                <Button onClick={() => downloadImage(selectedImage)}>
+                <Button variant="outline" onClick={() => downloadImage(selectedImage)}>
                   <Download className="h-4 w-4 mr-2" />
                   Download
                 </Button>

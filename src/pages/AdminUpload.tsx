@@ -36,6 +36,18 @@ export default function AdminUpload() {
   });
   const [tagInput, setTagInput] = useState('');
 
+  // Define CAD formats that require preview images
+  const cadFormats: { [key: string]: boolean } = {
+    'stp': true,
+    'step': true,
+    'stl': true,
+    'catpart': true,
+    'sldprt': true,
+    'prt': true,
+    'dwg': true,
+    'obj': true
+  };
+
   if (authLoading) {
     return <div className="flex justify-center items-center min-h-screen">Loading...</div>;
   }
@@ -63,13 +75,7 @@ export default function AdminUpload() {
           setPreview(e.target?.result as string);
         };
         reader.readAsDataURL(selectedFile);
-      } else if (fileExtension === 'stl' || fileExtension === 'glb') {
-        const reader = new FileReader();
-        reader.onload = (e) => {
-          setPreview(e.target?.result as string);
-        };
-        reader.readAsDataURL(selectedFile);
-      } else if (fileExtension === 'step' || fileExtension === 'stp') {
+      } else if (fileExtension && cadFormats[fileExtension]) {
         setNeedsConversion(true);
       } else {
         setUnsupportedType(true);
@@ -182,7 +188,7 @@ export default function AdminUpload() {
           image_url: urlData.publicUrl,
           preview_image_url: previewImageUrl,
           subject: formData.subject,
-          type: fileExt === 'stl' || fileExt === 'glb' ? '3D Model' : formData.type,
+          type: fileExt && cadFormats[fileExt] ? 'Diagrams' : formData.type,
           semester: formData.semester,
           tags: formData.tags,
           uploaded_by: user.id
@@ -229,8 +235,8 @@ export default function AdminUpload() {
          <p className="mb-2 text-sm text-gray-500">
            <span className="font-semibold">Click to upload</span> or drag and drop
          </p>
-         <p className="text-xs text-gray-500">Supported: Images (.jpg, .png, etc.), 3D Models (.stl, .glb)</p>
-         <p className="text-xs text-gray-500">Convert .STEP/.STP to .STL/.GLB before uploading.</p>
+         <p className="text-xs text-gray-500">Supported: Images (.jpg, .png, etc.)</p>
+         <p className="text-xs text-gray-500">For CAD files (.stp, .step, .stl, .catpart, .sldprt, .prt, .dwg, .obj), a preview image is required.</p>
        </div>
     );
 
@@ -254,43 +260,39 @@ export default function AdminUpload() {
       return (
         <div className="flex flex-col items-center justify-center w-full h-full text-gray-600 p-4 text-center">
           <FileText className="w-16 h-16 mb-4" />
-          <p className="text-lg font-semibold mb-2">Conversion Required</p>
+          <p className="text-lg font-semibold mb-2">Preview Image Required</p>
           <p className="text-sm text-gray-500 mb-4">
-            .STEP and .STP files need to be converted to .STL or .GLB format before they can be previewed or uploaded.
+            This CAD file format requires a preview image for better visualization.
+            Please upload a preview image (JPG, PNG) of your CAD model.
           </p>
-          <div className="space-y-4">
-            <Link to="/convert" className="text-blue-600 hover:underline block">
-              Go to Conversion Guide
-            </Link>
-            <div className="mt-4">
-              <Label htmlFor="preview-image" className="block text-sm font-medium text-gray-700 mb-2">
-                Or upload a preview image:
-              </Label>
-              <div className="flex items-center justify-center w-full">
-                <label className="flex flex-col items-center justify-center w-full h-32 border-2 border-gray-300 border-dashed rounded-lg cursor-pointer bg-gray-50 hover:bg-gray-100">
-                  {previewImageUrl ? (
-                    <img
-                      src={previewImageUrl}
-                      alt="Preview"
-                      className="w-full h-full object-contain rounded-lg"
-                    />
-                  ) : (
-                    <div className="flex flex-col items-center justify-center pt-5 pb-6">
-                      <ImageIcon className="w-8 h-8 mb-2 text-gray-500" />
-                      <p className="text-sm text-gray-500">
-                        <span className="font-semibold">Click to upload</span> preview image
-                      </p>
-                    </div>
-                  )}
-                  <input
-                    id="preview-image"
-                    type="file"
-                    className="hidden"
-                    accept="image/*"
-                    onChange={handlePreviewImageChange}
+          <div className="mt-4">
+            <Label htmlFor="preview-image" className="block text-sm font-medium text-gray-700 mb-2">
+              Upload a preview image:
+            </Label>
+            <div className="flex items-center justify-center w-full">
+              <label className="flex flex-col items-center justify-center w-full h-32 border-2 border-gray-300 border-dashed rounded-lg cursor-pointer bg-gray-50 hover:bg-gray-100">
+                {previewImageUrl ? (
+                  <img
+                    src={previewImageUrl}
+                    alt="Preview"
+                    className="w-full h-full object-contain rounded-lg"
                   />
-                </label>
-              </div>
+                ) : (
+                  <div className="flex flex-col items-center justify-center pt-5 pb-6">
+                    <ImageIcon className="w-8 h-8 mb-2 text-gray-500" />
+                    <p className="text-sm text-gray-500">
+                      <span className="font-semibold">Click to upload</span> preview image
+                    </p>
+                  </div>
+                )}
+                <input
+                  id="preview-image"
+                  type="file"
+                  className="hidden"
+                  accept="image/*"
+                  onChange={handlePreviewImageChange}
+                />
+              </label>
             </div>
           </div>
         </div>
@@ -357,7 +359,7 @@ export default function AdminUpload() {
                             id="file"
                             type="file"
                             className="hidden"
-                            accept=".jpg,.jpeg,.png,.gif,.svg,.webp,.stl,.glb,.step,.stp"
+                            accept=".jpg,.jpeg,.png,.gif,.svg,.webp,.stl,.glb,.step,.stp,.catpart,.sldprt,.prt,.dwg,.obj"
                             onChange={handleFileChange}
                           />
                        )}
@@ -414,7 +416,6 @@ export default function AdminUpload() {
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                       <SelectItem value="3D Model">3D Model</SelectItem>
                        <SelectItem value="Diagrams">Diagrams</SelectItem>
                        <SelectItem value="Notes">Notes</SelectItem>
                        <SelectItem value="Charts">Charts</SelectItem>

@@ -364,21 +364,35 @@ export default function Bookmarks() {
               <div className="space-y-4 overflow-y-auto flex-grow">
                 {/* File Preview */}
                 <div className="flex-1 min-h-0 bg-gray-100 rounded-lg overflow-hidden flex justify-center items-center mb-6 relative">
-                  {selectedImage.image_url.match(/\.(jpeg|jpg|png|gif|svg|webp)$/i) || selectedImage.preview_image_url ? (
+                  {selectedImage.preview_image_url ? (
                     <img
-                      src={selectedImage.preview_image_url || selectedImage.image_url}
-                      alt={selectedImage.title}
+                      src={selectedImage.preview_image_url}
+                      alt={`Preview of ${selectedImage.title}`}
                       className="max-w-full max-h-full object-contain"
                     />
                   ) : selectedImage.type === '3D Model' && (selectedImage.image_url.toLowerCase().endsWith('.stl') || selectedImage.image_url.toLowerCase().endsWith('.glb')) ? (
                     // Render CADViewer for STL/GLB files
                     <CADViewer modelPath={selectedImage.image_url} width="100%" height="100%" />
-                  ) : ( // Handle non-image files - show a placeholder or download option
+                  ) : selectedImage.image_url.match(/\.(jpeg|jpg|png|gif|svg|webp)$/i) ? (
+                    <img
+                      src={selectedImage.image_url}
+                      alt={selectedImage.title}
+                      className="max-w-full max-h-full object-contain"
+                    />
+                  ) : ( // Handle other CAD files
                     <div className="flex flex-col items-center justify-center text-gray-600 w-full h-full">
                       <FileText className="w-16 h-16 mb-4" />
-                      <p className="text-lg font-semibold mb-2">File Preview Not Available</p>
-                      <p className="text-sm text-gray-500 text-center mb-4">This file type cannot be previewed directly. Please download to view or the format is not supported for direct preview.</p>
-                      {/* Optional: Add a download button here if not already in action buttons below */}
+                      <p className="text-lg font-semibold mb-2">CAD File Preview</p>
+                      <p className="text-sm text-gray-500 text-center mb-4">
+                        This CAD file format cannot be previewed directly. Please download the file to view it in your CAD software.
+                      </p>
+                      <Button
+                        onClick={() => downloadImage(selectedImage)}
+                        className="mt-4"
+                      >
+                        <Download className="w-4 h-4 mr-2" />
+                        Download CAD File
+                      </Button>
                     </div>
                   )}
                 </div>
