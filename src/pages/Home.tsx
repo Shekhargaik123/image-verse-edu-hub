@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
@@ -42,8 +41,20 @@ export default function Home() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-gray-50">
       {/* Hero Section */}
-      <section className="relative py-20 px-4 sm:px-6 lg:px-8">
-        <div className="max-w-7xl mx-auto text-center">
+      <section className="relative py-20 px-4 sm:px-6 lg:px-8 overflow-hidden">
+        {/* Background Elements */}
+        <div className="absolute top-0 left-0 w-full h-full z-0 opacity-10">
+          {/* Add background patterns or shapes here */}
+          {/* Example: A grid pattern or abstract lines */}
+          <svg className="absolute top-0 left-0 w-full h-full" xmlns="http://www.w3.org/2000/svg">
+            <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
+              <path d="M 40 0 L 0 0 L 0 40" fill="none" stroke="#a0aec0" stroke-width="1"></path>
+            </pattern>
+            <rect width="100%" height="100%" fill="url(#grid)" />
+          </svg>
+        </div>
+        
+        <div className="max-w-7xl mx-auto text-center relative z-10">
           <div className="flex justify-center mb-6">
             <Badge variant="secondary" className="px-4 py-2 text-lg font-medium bg-blue-100 text-blue-800">
               For Mechanical Engineering Students
@@ -71,6 +82,23 @@ export default function Home() {
                 Browse Gallery
               </Button>
             </Link>
+          </div>
+        </div>
+      </section>
+
+      {/* Dynamic CAD Showcase Section */}
+      <section className="relative py-16 px-4 sm:px-6 lg:px-8 overflow-hidden">
+        <div className="max-w-7xl mx-auto text-center relative z-10">
+          <h2 className="text-3xl font-bold text-gray-900 mb-8">
+            Explore Featured CAD Models
+          </h2>
+          {/* Placeholder for dynamic CAD elements */}
+          <div className="mt-12 relative h-96 flex justify-center items-center">
+            {/* Example floating elements - replace with actual images/components later */}
+            <div className="absolute w-32 h-32 border-2 border-blue-400 opacity-75 animate-float" style={{ top: '10%', left: '15%', animationDuration: '8s' }}></div>
+            <div className="absolute w-40 h-40 border-2 border-green-400 opacity-75 animate-float-alt" style={{ bottom: '10%', right: '20%', animationDelay: '2s', animationDuration: '10s' }}></div>
+            <div className="absolute w-24 h-24 border-2 border-red-400 opacity-75 animate-float" style={{ top: '20%', right: '10%', animationDelay: '1s', animationDuration: '7s' }}></div>
+             <div className="absolute w-36 h-36 border-2 border-purple-400 opacity-75 animate-float-alt" style={{ bottom: '20%', left: '25%', animationDelay: '3s', animationDuration: '9s' }}></div>
           </div>
         </div>
       </section>

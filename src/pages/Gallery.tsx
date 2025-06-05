@@ -150,7 +150,7 @@ export default function Gallery() {
       // Increment download count
       await supabase.rpc('increment_download_count', { image_id: image.id });
 
-      // Fetch the image as a blob
+      // Fetch the original file as a blob
       const response = await fetch(image.image_url, { mode: 'cors' });
       const blob = await response.blob();
 
@@ -158,7 +158,28 @@ export default function Gallery() {
       const url = window.URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;
-      link.download = `${image.title}.jpg`;
+      
+      // Get the original file extension from the URL
+      const originalExtension = image.image_url.split('.').pop()?.toLowerCase();
+      
+      // Map of supported CAD formats
+      const cadFormats = {
+        'stp': 'stp',
+        'step': 'step',
+        'stl': 'stl',
+        'catpart': 'CATPart',
+        'sldprt': 'SLDPRT',
+        'prt': 'PRT',
+        'dwg': 'DWG',
+        'obj': 'OBJ'
+      };
+
+      // Use the original extension if it's a CAD format, otherwise use the type to determine extension
+      const fileExtension = cadFormats[originalExtension] || 
+        (image.type.toLowerCase() === 'diagrams' ? 'step' : originalExtension);
+      
+      link.download = `${image.title}.${fileExtension}`;
+      
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
@@ -518,7 +539,7 @@ export default function Gallery() {
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
             {filteredImages.map((image) => (
-              <Card key={image.id} className="hover:shadow-xl transition-all duration-300 hover:scale-[1.02] bg-white border-0 shadow-md">
+              <Card key={image.id} className="hover:shadow-xl transition-all duration-300 hover:scale-[1.02] bg-white border rounded-lg overflow-hidden shadow-sm">
                 <CardContent className="p-0">
                   {/* Image */}
                   <div className="aspect-square relative group cursor-pointer overflow-hidden rounded-t-lg"
@@ -659,73 +680,70 @@ export default function Gallery() {
           
           {selectedImage && (
             <div className="flex flex-col h-full min-h-0">
-              {/* Fixed Info Section */}
-              <div className="flex-shrink-0 space-y-4 mb-4">
-                <div className="grid grid-cols-2 gap-4 text-sm">
-                  <div>
-                    <p><strong>Subject:</strong> {selectedImage.subject}</p>
-                    <p><strong>Type:</strong> {selectedImage.type}</p>
-                    <p><strong>Semester:</strong> {selectedImage.semester}</p>
-                  </div>
-                  <div>
-                    <p><strong>Downloads:</strong> {selectedImage.download_count}</p>
-                    <p><strong>Uploaded:</strong> {new Date(selectedImage.created_at).toLocaleDateString()}</p>
-                  </div>
-                </div>
-
-                {selectedImage.description && (
-                  <div>
-                    <p><strong>Description:</strong></p>
-                    <p className="text-gray-600">{selectedImage.description}</p>
-                  </div>
-                )}
-
-                {selectedImage.tags.length > 0 && (
-                  <div>
-                    <p><strong>Tags:</strong></p>
-                    <div className="flex flex-wrap gap-1 mt-1">
-                      {selectedImage.tags.map((tag, index) => (
-                        <Badge key={index} variant="secondary">{tag}</Badge>
-                      ))}
+              {/* Scrollable content wrapper */}
+              <div className="space-y-4 overflow-y-auto flex-grow">
+                {/* Fixed Info Section (content moves here) */}
+                <div className="space-y-4 mb-6 pb-6 border-b">
+                  <div className="grid grid-cols-2 gap-y-3 gap-x-4 text-sm">
+                    <div>
+                      <p><strong className="text-gray-700">Subject:</strong> {selectedImage.subject}</p>
+                      <p><strong className="text-700">Type:</strong> {selectedImage.type}</p>
+                      <p><strong className="text-gray-700">Semester:</strong> {selectedImage.semester}</p>
+                    </div>
+                    <div className="text-right">
+                      <p><strong className="text-gray-700">Downloads:</strong> {selectedImage.download_count}</p>
+                      <p><strong className="text-gray-700">Uploaded:</strong> {new Date(selectedImage.created_at).toLocaleDateString()}</p>
                     </div>
                   </div>
-                )}
-              </div>
 
-              {/* Constrained Resource Preview Area */}
-              <div className="flex-1 min-h-0 bg-gray-100 rounded-lg overflow-hidden flex justify-center items-center">
-                {selectedImage.image_url.match(/\.(jpeg|jpg|png|gif|svg|webp)$/i) || selectedImage.type === '3D Model' ? (
-                  // For 3D models, check for preview_image_url first, then image_url (if it was converted/uploaded as image)
-                  selectedImage.preview_image_url ? (
+                  {selectedImage.description && (
+                    <div className="mt-4 pt-4 border-t">
+                      <p className="text-gray-700 mb-2"><strong>Description:</strong></p>
+                      <p className="text-gray-600 text-sm leading-relaxed">{selectedImage.description}</p>
+                    </div>
+                  )}
+
+                  {selectedImage.tags.length > 0 && (
+                    <div className={`${selectedImage.description ? '' : 'mt-4 pt-4 border-t'}`}>
+                      <p className="text-gray-700 mb-2"><strong>Tags:</strong></p>
+                      <div className="flex flex-wrap gap-1 mt-1">
+                        {selectedImage.tags.map((tag, index) => (
+                          <Badge key={index} variant="secondary" className="text-xs">{tag}</Badge>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Constrained Resource Preview Area (content moves here) */}
+                <div className="flex-1 min-h-0 bg-gray-100 rounded-lg overflow-hidden flex justify-center items-center mb-6 relative">
+                  {/* File Preview */}
+                  {selectedImage.preview_image_url ? (
                     <img
                       src={selectedImage.preview_image_url}
                       alt={`Preview of ${selectedImage.title}`}
                       className="max-w-full max-h-full object-contain"
                     />
+                  ) : selectedImage.type === '3D Model' && (selectedImage.image_url.toLowerCase().endsWith('.stl') || selectedImage.image_url.toLowerCase().endsWith('.glb')) ? (
+                    // Render CADViewer for STL/GLB files
+                    <CADViewer modelPath={selectedImage.image_url} width="100%" height="100%" />
                   ) : selectedImage.image_url.match(/\.(jpeg|jpg|png|gif|svg|webp)$/i) ? (
                     <img
                       src={selectedImage.image_url}
                       alt={selectedImage.title}
                       className="max-w-full max-h-full object-contain"
                     />
-                   ) : (
-                    // Fallback for 3D model without preview image
-                    <div className="flex flex-col items-center justify-center text-gray-600">
+                   ) : ( // Handle other non-image files and unsupported 3D formats
+                    <div className="flex flex-col items-center justify-center text-gray-600 w-full h-full">
                       <FileText className="w-16 h-16 mb-4" />
-                      <p className="text-lg font-semibold mb-2">3D Model Preview Not Available</p>
-                      <p className="text-sm text-gray-500 text-center mb-4">A preview image was not provided for this model.</p>
+                      <p className="text-lg font-semibold mb-2">File Preview Not Available</p>
+                      <p className="text-sm text-gray-500 text-center mb-4">This file type cannot be previewed directly. Please download to view or the format is not supported for direct preview.</p>
                     </div>
-                   )
-                ) : ( // Handle other non-image files
-                  <div className="flex flex-col items-center justify-center text-gray-600">
-                    <FileText className="w-16 h-16 mb-4" />
-                    <p className="text-lg font-semibold mb-2">File Preview Not Available</p>
-                    <p className="text-sm text-gray-500 text-center mb-4">This file type cannot be previewed directly. Please download to view.</p>
-                  </div>
-                )}
+                   )}
+                </div>
               </div>
 
-              {/* Fixed Action Buttons */}
+              {/* Fixed Action Buttons (remains here) */}
               <div className="flex-shrink-0 flex justify-end items-center space-x-2 mt-4 pt-4 border-t">
                 <Button
                   variant="outline"

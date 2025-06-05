@@ -9,6 +9,7 @@ import { EducationalImage } from '@/types/database';
 import { Download, BookmarkCheck, Eye, Trash2, Share2, FileText } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Drawer, DrawerContent, DrawerHeader, DrawerTitle, DrawerTrigger, DrawerClose } from '@/components/ui/drawer';
+import CADViewer from '@/components/CADViewer';
 
 export default function Bookmarks() {
   const { user, loading: authLoading } = useAuth();
@@ -78,7 +79,7 @@ export default function Bookmarks() {
       // Increment download count
       await supabase.rpc('increment_download_count', { image_id: image.id });
 
-      // Fetch the image as a blob
+      // Fetch the original file as a blob
       const response = await fetch(image.image_url, { mode: 'cors' });
       const blob = await response.blob();
 
@@ -86,9 +87,27 @@ export default function Bookmarks() {
       const url = window.URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;
-      // Determine file extension from type or url
-      const fileExtension = image.type.toLowerCase() === 'diagrams' ? 'step' : image.image_url.split('.').pop();
-      link.download = `${image.title}.${fileExtension}`; // Suggests a filename
+      
+      // Get the original file extension from the URL
+      const originalExtension = image.image_url.split('.').pop()?.toLowerCase();
+      
+      // Map of supported CAD formats
+      const cadFormats = {
+        'stp': 'stp',
+        'step': 'step',
+        'stl': 'stl',
+        'catpart': 'CATPart',
+        'sldprt': 'SLDPRT',
+        'prt': 'PRT',
+        'dwg': 'DWG',
+        'obj': 'OBJ'
+      };
+
+      // Use the original extension if it's a CAD format, otherwise use the type to determine extension
+      const fileExtension = cadFormats[originalExtension] || 
+        (image.type.toLowerCase() === 'diagrams' ? 'step' : originalExtension);
+      
+      link.download = `${image.title}.${fileExtension}`;
       
       document.body.appendChild(link);
       link.click();
@@ -226,7 +245,7 @@ export default function Bookmarks() {
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
             {bookmarkedImages.map((image) => (
-              <Card key={image.id} className="hover:shadow-lg transition-shadow">
+              <Card key={image.id} className="hover:shadow-lg transition-shadow border rounded-lg overflow-hidden shadow-sm">
                 <CardContent className="p-4">
                   <div className="aspect-square mb-3 relative group cursor-pointer"
                        onClick={() => openPreview(image)}>
@@ -344,48 +363,51 @@ export default function Bookmarks() {
             {selectedImage && (
               <div className="space-y-4 overflow-y-auto flex-grow">
                 {/* File Preview */}
-                <div className="flex-1 min-h-0 bg-gray-100 rounded-lg overflow-hidden flex justify-center items-center">
+                <div className="flex-1 min-h-0 bg-gray-100 rounded-lg overflow-hidden flex justify-center items-center mb-6 relative">
                   {selectedImage.image_url.match(/\.(jpeg|jpg|png|gif|svg|webp)$/i) || selectedImage.preview_image_url ? (
                     <img
                       src={selectedImage.preview_image_url || selectedImage.image_url}
                       alt={selectedImage.title}
                       className="max-w-full max-h-full object-contain"
                     />
+                  ) : selectedImage.type === '3D Model' && (selectedImage.image_url.toLowerCase().endsWith('.stl') || selectedImage.image_url.toLowerCase().endsWith('.glb')) ? (
+                    // Render CADViewer for STL/GLB files
+                    <CADViewer modelPath={selectedImage.image_url} width="100%" height="100%" />
                   ) : ( // Handle non-image files - show a placeholder or download option
-                    <div className="flex flex-col items-center justify-center text-gray-600">
+                    <div className="flex flex-col items-center justify-center text-gray-600 w-full h-full">
                       <FileText className="w-16 h-16 mb-4" />
                       <p className="text-lg font-semibold mb-2">File Preview Not Available</p>
-                      <p className="text-sm text-gray-500 text-center mb-4">This file type cannot be previewed directly. Please download to view.</p>
+                      <p className="text-sm text-gray-500 text-center mb-4">This file type cannot be previewed directly. Please download to view or the format is not supported for direct preview.</p>
                       {/* Optional: Add a download button here if not already in action buttons below */}
                     </div>
                   )}
                 </div>
 
-                <div className="grid grid-cols-2 gap-4 text-sm">
+                <div className="grid grid-cols-2 gap-y-3 gap-x-4 text-sm mb-4 pb-4 border-b">
                   <div>
-                    <p><strong>Subject:</strong> {selectedImage.subject}</p>
-                    <p><strong>Type:</strong> {selectedImage.type}</p>
-                    <p><strong>Semester:</strong> {selectedImage.semester}</p>
+                    <p><strong className="text-gray-700">Subject:</strong> {selectedImage.subject}</p>
+                    <p><strong className="text-gray-700">Type:</strong> {selectedImage.type}</p>
+                    <p><strong className="text-gray-700">Semester:</strong> {selectedImage.semester}</p>
                   </div>
-                  <div>
-                    <p><strong>Downloads:</strong> {selectedImage.download_count}</p>
-                    <p><strong>Uploaded:</strong> {new Date(selectedImage.created_at).toLocaleDateString()}</p>
+                  <div className="text-right">
+                    <p><strong className="text-gray-700">Downloads:</strong> {selectedImage.download_count}</p>
+                    <p><strong className="text-gray-700">Uploaded:</strong> {new Date(selectedImage.created_at).toLocaleDateString()}</p>
                   </div>
                 </div>
 
                 {selectedImage.description && (
-                  <div>
-                    <p><strong>Description:</strong></p>
-                    <p className="text-gray-600">{selectedImage.description}</p>
+                  <div className="mb-4 pb-4 border-b">
+                    <p className="text-gray-700 mb-2"><strong>Description:</strong></p>
+                    <p className="text-gray-600 text-sm leading-relaxed">{selectedImage.description}</p>
                   </div>
                 )}
 
                 {selectedImage.tags && selectedImage.tags.length > 0 && (
-                  <div>
-                    <p><strong>Tags:</strong></p>
+                  <div className="mb-4 pb-4 border-b">
+                    <p className="text-gray-700 mb-2"><strong>Tags:</strong></p>
                     <div className="flex flex-wrap gap-1 mt-1">
                       {selectedImage.tags.map((tag, index) => (
-                        <Badge key={index} variant="secondary">{tag}</Badge>
+                        <Badge key={index} variant="secondary" className="text-xs">{tag}</Badge>
                       ))}
                     </div>
                   </div>
